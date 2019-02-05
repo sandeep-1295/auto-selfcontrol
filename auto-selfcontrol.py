@@ -10,9 +10,73 @@ import sys
 from Foundation import NSUserDefaults, CFPreferencesSetAppValue, CFPreferencesAppSynchronize, NSDate
 from pwd import getpwnam
 from optparse import OptionParser
+from pprint import pprint
+import pdb
+
+def convert_block_schedule_to_legacy_format(block_schedules):
+    def get_legacy_schedule_block(day=0,sh=0,sm=0,eh=0,em=0):
+        return {
+            "weekday": day,
+            "start-hour": sh,
+            "start-minute": sm,
+            "end-hour": eh,
+            "end-minute": em
+        }
+    weekdays = [d.strip() for d in """
+            monday 
+            tuesday
+            wednesday
+            thursday
+            friday
+            """.split()]
+    weekends = ["saturday", "sunday"]
+    weekday_to_int = dict((dayname.strip(), i+1) for i, dayname in enumerate(weekdays+weekends))
+    timeslot_dict = {}
+    for schedule in block_schedules:
+        try:
+            start, end = int(schedule['starttime']), int(schedule['endtime'])
+            sh,sm, eh,em = start//100, start%100, end//100, end%100
+            if not (
+                0 <= sh < 24 and
+                0 <= eh < 24 and
+                0 <= sm < 59 and
+                0 <= em < 59
+            ):
+                raise Exception("not military time")    
+        except:
+            print sh, sm, eh, em
+            exit_with_error("Invalid time entry, has to be military time format")
+        start = max(0, min(23*60+59, start//100 * 60 + start %100))
+        end = min(23*60+59, end//100 * 60 + end%100)
+        if end < start:
+            carry_over = end
+            end = 23*60+59
+        print start, end, carry_over
+        days = schedule['days']
+        if type(days) in [str, unicode]:
+            if days == "everyday":
+                days = weekdays + weekends
+            elif days == "weekdays":
+                days = weekdays
+            elif days == "weekends":
+                days = weekends
+        days = sorted([weekday_to_int[day] for day in days])
+        for day in days:
+            timeslot_dict.setdefault(day,[])
+            timeslot_dict[day].append((start, end))
+            if carry_over > 0:
+                timeslot_dict.setdefault(day%7+1,[])
+                timeslot_dict[day%7+1].append((0, carry_over))
+    legacy_block_schedules = []
+    for day, timeslots in timeslot_dict.iteritems():
+        timeslots.sort()
+        for s,e in timeslots:
+            block = get_legacy_schedule_block(day, s//60, s%60, e//60, e%60)
+            legacy_block_schedules.append(block)
+    return legacy_block_schedules
 
 
-def load_config(config_files):
+def load_config(config_files, new_format=False):
     """ loads json configuration files
     the latter configs overwrite the previous configs
     """
@@ -22,7 +86,12 @@ def load_config(config_files):
     for f in config_files:
         try:
             with open(f, 'rt') as cfg:
-                config.update(json.load(cfg))
+                cfg = json.load(cfg)
+                if cfg.has_key("new_block_schedule_format") and new_format:
+                    block_schedules = cfg['new_block_schedule_format']
+                    block_schedules = convert_block_schedule_to_legacy_format(block_schedules)
+                    cfg['block-schedules'] = block_schedules
+                config.update(cfg)
         except ValueError as e:
             exit_with_error("The json config file {configfile} is not correctly formatted." \
                             "The following exception was raised:\n{exc}".format(configfile=f, exc=e))
@@ -248,7 +317,13 @@ def exit_with_error(message):
 
 
 if __name__ == "__main__":
+    # web_pdb.set_trace()
     __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    config = load_config([os.path.join(__location__, "config.json")])
+    # pprint(config['block-schedules'])
+    # pprint(config)
+    # sys.exit()
+
     sys.excepthook = excepthook
 
     syslog.openlog("Auto-SelfControl")
@@ -261,8 +336,7 @@ if __name__ == "__main__":
     parser.add_option("-r", "--run", action="store_true",
                       dest="run", default=False)
     (opts, args) = parser.parse_args()
-    config = load_config([os.path.join(__location__, "config.json")])
-
+    
     if opts.run:
         run(config)
     else:

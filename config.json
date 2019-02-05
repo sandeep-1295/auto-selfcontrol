@@ -1,9 +1,15 @@
 {
-    "username": "MY_USERNAME",
+    "username": "sjangra",
     "selfcontrol-path": "/Applications/SelfControl.app",
     "host-blacklist": [
-        "twitter.com",
-        "reddit.com"
+        "youtube.com"
+    ],
+    "new_block_schedule_format":[
+        {
+            "starttime": "2130",
+            "endtime": "0100",
+            "days": "everyday"
+        }
     ],
     "block-schedules":[
         {
@@ -15,17 +21,17 @@
         },
         {
             "weekday": 2,
-            "start-hour": 8,
-            "start-minute": 0,
-            "end-hour": 17,
-            "end-minute": 0
+            "start-hour": 21,
+            "start-minute": 30,
+            "end-hour": 23,
+            "end-minute": 59
         },
         {
             "weekday": 3,
-            "start-hour": 8,
-            "start-minute": 0,
-            "end-hour": 17,
-            "end-minute": 0
+            "start-hour": 21,
+            "start-minute": 30,
+            "end-hour": 23,
+            "end-minute": 59
         },
         {
             "weekday": 4,
